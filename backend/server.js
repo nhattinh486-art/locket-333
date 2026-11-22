@@ -753,9 +753,6 @@ function buildMobileConfigXml({ username, uid, dohUrl }) {
         <array>
           <string>api.revenuecat.com</string>
           <string>*.revenuecat.com</string>
-          <string>firebaseremoteconfig.googleapis.com</string>
-          <string>*.firebaseremoteconfig.googleapis.com</string>
-          <string>api.locketcamera.com</string>
           <string>ocsp.apple.com</string>
           <string>ocsp2.apple.com</string>
           <string>crl.apple.com</string>
