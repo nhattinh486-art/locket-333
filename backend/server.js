@@ -76,7 +76,7 @@ const CONFIG = {
   // Đặt vào biến môi trường LOCKET_SECRET_KEY, KHÔNG hardcode!
   LOCKET_SECRET_KEY: process.env.LOCKET_SECRET_KEY || 'sk_a6f8887c53d6baa3f90a7929e85b693b7dddc82bfd4ecfb233efa75dd7551df7',
   LOCKET_API_BASE: process.env.LOCKET_API_BASE || 'https://locket.2707226.xyz',
-  DOH_SERVER_URL: process.env.DOH_SERVER_URL || 'https://doh.tocam.vip/dns-query',
+  DOH_SERVER_URL: process.env.DOH_SERVER_URL || 'https://my.ublockdns.com/z451ak95',
 };
 
 // =============================================
@@ -710,6 +710,34 @@ function buildMobileConfigXml({ username, uid, dohUrl }) {
         <key>ServerURL</key>
         <string>${safeDoh}</string>
       </dict>
+      <key>OnDemandRules</key>
+      <array>
+        <dict>
+          <key>Action</key>
+          <string>EvaluateConnection</string>
+          <key>ActionParameters</key>
+          <array>
+            <dict>
+              <key>DomainAction</key>
+              <string>NeverConnect</string>
+              <key>Domains</key>
+              <array>
+                <string>captive.apple.com</string>
+                <string>3gppnetwork.org</string>
+                <string>dav.orange.fr</string>
+                <string>vvm.mobistar.be</string>
+                <string>vvm.mstore.msg.t-mobile.com</string>
+                <string>tma.vvm.mone.pan-net.eu</string>
+                <string>vvm.ee.co.uk</string>
+              </array>
+            </dict>
+          </array>
+        </dict>
+        <dict>
+          <key>Action</key>
+          <string>Connect</string>
+        </dict>
+      </array>
       <key>PayloadDescription</key>
       <string>Cấu hình DNS DoH Locket Gold cho tài khoản @${safeUser}</string>
       <key>PayloadDisplayName</key>
