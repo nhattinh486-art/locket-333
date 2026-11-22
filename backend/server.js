@@ -684,6 +684,7 @@ app.get('/api/locket/uid/check', async (req, res) => {
 app.all('/api/locket/profile/download', async (req, res) => {
   const uid = req.body?.uid || req.query?.uid;
   const username = req.body?.username || req.query?.username;
+  const rawPlan = req.body?.plan || req.query?.plan || 'LIFETIME';
 
   if (!uid && !username) {
     return res.status(400).json({ ok: false, message: 'Thiếu uid hoặc username' });
@@ -726,7 +727,44 @@ app.all('/api/locket/profile/download', async (req, res) => {
   console.log(`[PROFILE] Đang tải .mobileconfig cho UID: ${resolvedUid}`);
 
   try {
-    const result = await locketRequest('POST', '/api/profile/custom', { uid: resolvedUid });
+    let result = await locketRequest('POST', '/api/profile/custom', { uid: resolvedUid });
+
+    // Nếu UID chưa được kích hoạt trên Locket API (403) -> Tự động gọi POST /api/uid/create để tạo UID trước rồi tải lại file
+    if (result.statusCode === 403 && cleanUsername) {
+      const normPlan = String(rawPlan).toUpperCase().trim() === '6MONTH' ? 'MONTH6' : String(rawPlan).toUpperCase().trim();
+      const targetPlan = CONFIG.LOCKET_PACKAGE_CODES[normPlan] ? normPlan : 'LIFETIME';
+      const packageCode = CONFIG.LOCKET_PACKAGE_CODES[targetPlan] || 'LKGVV';
+      console.log(`[PROFILE] UID chưa kích hoạt -> Tự động tạo UID cho @${cleanUsername} (gói ${packageCode})...`);
+
+      const createRes = await locketRequest('POST', '/api/uid/create', {
+        username: cleanUsername,
+        packageCode: packageCode
+      });
+
+      if (createRes.statusCode === 200 || createRes.statusCode === 201) {
+        const rawData = createRes.data?.data || createRes.data;
+        const createdUid = rawData?.uid?.uidString || rawData?.uid?.uid || rawData?.uid || rawData?.uidString || resolvedUid;
+        if (typeof createdUid === 'string' && createdUid) {
+          resolvedUid = createdUid;
+        }
+        saveUser({
+          username: cleanUsername,
+          uid: resolvedUid,
+          currentPlan: targetPlan,
+          status: 'ACTIVE',
+          expiresAt: targetPlan === 'LIFETIME' ? 'Vĩnh Viễn' : (rawData?.uid?.expiresAt || rawData?.expiresAt || null),
+          lastRenewedAt: new Date().toISOString()
+        });
+        console.log(`[PROFILE] ✅ Đã tạo UID thành công (${resolvedUid}), đang tải lại file .mobileconfig...`);
+        result = await locketRequest('POST', '/api/profile/custom', { uid: resolvedUid });
+      } else {
+        console.error(`[PROFILE] ❌ Tự động tạo UID thất bại (HTTP ${createRes.statusCode}):`, createRes.data?.message);
+        return res.status(createRes.statusCode || 400).json({
+          ok: false,
+          message: createRes.data?.message || `Không thể tạo UID tự động (HTTP ${createRes.statusCode})`
+        });
+      }
+    }
 
     if (result.isFile && result.statusCode === 200) {
       res.setHeader('Content-Type', 'application/x-apple-aspen-config');

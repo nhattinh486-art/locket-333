@@ -949,7 +949,8 @@ async function checkActivation() {
 
   // 3. Tải profile .mobileconfig ngầm
   try {
-    const bodyData = uid ? { uid } : { username };
+    const planCode = selectedPlan ? selectedPlan.code : 'LIFETIME';
+    const bodyData = { uid: uid || undefined, username, plan: planCode };
     const profileRes = await fetch(`${BACKEND_URL}/api/locket/profile/download`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -959,9 +960,7 @@ async function checkActivation() {
     if (profileRes.ok) {
       const blob = await profileRes.blob();
       const url = URL.createObjectURL(blob);
-      const directDownloadLink = uid
-        ? `${BACKEND_URL}/api/locket/profile/download?uid=${encodeURIComponent(uid)}`
-        : `${BACKEND_URL}/api/locket/profile/download?username=${encodeURIComponent(username)}`;
+      const directDownloadLink = `${BACKEND_URL}/api/locket/profile/download?username=${encodeURIComponent(username)}&plan=${encodeURIComponent(planCode)}${uid ? `&uid=${encodeURIComponent(uid)}` : ''}`;
 
       terminal.innerHTML = '';
       termLog(terminal, '[HOÀN TẤT] ✅ Cấu hình Locket Gold đã sẵn sàng!', 'success');
@@ -1010,8 +1009,13 @@ async function checkActivation() {
       if (pendingDns) pendingDns.style.display = 'none';
       if (readyDns) readyDns.style.display = 'flex';
     } else {
+      let errMsg = 'Không thể tải hồ sơ DNS.';
+      try {
+        const errJson = await profileRes.json();
+        if (errJson?.message) errMsg = errJson.message;
+      } catch (e) {}
       terminal.innerHTML = '';
-      termLog(terminal, '[THÔNG BÁO] Đã kích hoạt gói Gold thành công! Vui lòng tải hồ sơ DNS bên dưới.', 'success');
+      termLog(terminal, `[LỖI TẢI FILE] ❌ ${errMsg}`, 'info');
       // Vẫn mở nút tải trực tiếp cho người dùng
       const pendingDns = document.getElementById('dns-actions-pending');
       const readyDns = document.getElementById('dns-actions-ready');
