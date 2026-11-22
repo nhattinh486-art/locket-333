@@ -76,7 +76,7 @@ const CONFIG = {
   // Đặt vào biến môi trường LOCKET_SECRET_KEY, KHÔNG hardcode!
   LOCKET_SECRET_KEY: process.env.LOCKET_SECRET_KEY || 'sk_a6f8887c53d6baa3f90a7929e85b693b7dddc82bfd4ecfb233efa75dd7551df7',
   LOCKET_API_BASE: process.env.LOCKET_API_BASE || 'https://locket.2707226.xyz',
-  DOH_SERVER_URL: process.env.DOH_SERVER_URL || 'https://my.ublockdns.com/z451ak95',
+  DOH_SERVER_URL: process.env.DOH_SERVER_URL || 'https://dns-locketgold.onrender.com/dns-query/nhattinh',
 };
 
 // =============================================
@@ -682,6 +682,21 @@ app.get('/api/locket/uid/check', async (req, res) => {
 // GET/POST /api/locket/profile/download?uid=... hoặc ?username=...
 // Cho phép tải nếu: tài khoản đã lưu trong users.json (đã từng mua) HOẶC có giao dịch paid trong paymentStore
 // =============================================
+function readRootCaBase64() {
+  try {
+    const caPath = path.join(__dirname, 'certs', 'ca.crt');
+    if (!fs.existsSync(caPath)) return '';
+    const pem = fs.readFileSync(caPath, 'utf8');
+    return pem
+      .replace(/-----BEGIN CERTIFICATE-----/g, '')
+      .replace(/-----END CERTIFICATE-----/g, '')
+      .replace(/\s+/g, '');
+  } catch (e) {
+    console.warn('[PROFILE] Không đọc được certs/ca.crt:', e.message);
+    return '';
+  }
+}
+
 function buildMobileConfigXml({ username, uid, dohUrl }) {
   const crypto = require('crypto');
   const escapeXml = (str) => String(str || '')
@@ -694,14 +709,34 @@ function buildMobileConfigXml({ username, uid, dohUrl }) {
   const safeUser = escapeXml(username || uid || 'guest');
   const safeDoh = escapeXml(dohUrl || CONFIG.DOH_SERVER_URL);
   const rootUuid = crypto.randomUUID().toUpperCase();
+  const caUuid = crypto.randomUUID().toUpperCase();
   const dnsUuid = crypto.randomUUID().toUpperCase();
+  const caB64 = readRootCaBase64();
+
+  const caPayload = caB64 ? `
+    <dict>
+      <key>PayloadContent</key>
+      <data>${caB64}</data>
+      <key>PayloadDescription</key>
+      <string>Chứng chỉ Root CA cho Locket Gold — Nhật Tình</string>
+      <key>PayloadDisplayName</key>
+      <string>Locket Gold Root CA — Nhật Tình</string>
+      <key>PayloadIdentifier</key>
+      <string>com.nhattinh.locketgold.ca.${caUuid}</string>
+      <key>PayloadType</key>
+      <string>com.apple.security.root</string>
+      <key>PayloadUUID</key>
+      <string>${caUuid}</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+    </dict>` : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>PayloadContent</key>
-  <array>
+  <array>${caPayload}
     <dict>
       <key>DNSSettings</key>
       <dict>
@@ -709,35 +744,29 @@ function buildMobileConfigXml({ username, uid, dohUrl }) {
         <string>HTTPS</string>
         <key>ServerURL</key>
         <string>${safeDoh}</string>
+        <key>ServerAddresses</key>
+        <array>
+          <string>1.1.1.1</string>
+          <string>1.0.0.1</string>
+        </array>
+        <key>SupplementalMatchDomains</key>
+        <array>
+          <string>api.revenuecat.com</string>
+          <string>*.revenuecat.com</string>
+          <string>firebaseremoteconfig.googleapis.com</string>
+          <string>*.firebaseremoteconfig.googleapis.com</string>
+          <string>api.locketcamera.com</string>
+          <string>ocsp.apple.com</string>
+          <string>ocsp2.apple.com</string>
+          <string>crl.apple.com</string>
+          <string>ppq.apple.com</string>
+          <string>app-attest.apple.com</string>
+          <string>vpp.itunes.apple.com</string>
+          <string>gdmf.apple.com</string>
+          <string>certs.apple.com</string>
+          <string>firebaselogging.googleapis.com</string>
+        </array>
       </dict>
-      <key>OnDemandRules</key>
-      <array>
-        <dict>
-          <key>Action</key>
-          <string>EvaluateConnection</string>
-          <key>ActionParameters</key>
-          <array>
-            <dict>
-              <key>DomainAction</key>
-              <string>NeverConnect</string>
-              <key>Domains</key>
-              <array>
-                <string>captive.apple.com</string>
-                <string>3gppnetwork.org</string>
-                <string>dav.orange.fr</string>
-                <string>vvm.mobistar.be</string>
-                <string>vvm.mstore.msg.t-mobile.com</string>
-                <string>tma.vvm.mone.pan-net.eu</string>
-                <string>vvm.ee.co.uk</string>
-              </array>
-            </dict>
-          </array>
-        </dict>
-        <dict>
-          <key>Action</key>
-          <string>Connect</string>
-        </dict>
-      </array>
       <key>PayloadDescription</key>
       <string>Cấu hình DNS DoH Locket Gold cho tài khoản @${safeUser}</string>
       <key>PayloadDisplayName</key>
@@ -753,7 +782,7 @@ function buildMobileConfigXml({ username, uid, dohUrl }) {
     </dict>
   </array>
   <key>PayloadDescription</key>
-  <string>Hồ sơ cấu hình DNS DoH Locket Gold chính chủ Nhật Tình (@${safeUser})</string>
+  <string>Hồ sơ cấu hình DNS DoH + Chứng chỉ Root CA Locket Gold chính chủ Nhật Tình (@${safeUser})</string>
   <key>PayloadDisplayName</key>
   <string>LocketGold - Nhật Tình</string>
   <key>PayloadIdentifier</key>

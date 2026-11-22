@@ -25,7 +25,7 @@ const TO_CAM_CONFIG = {
   ZALO_URL: "https://zalo.me/0386116104",
 
   // --- THÔNG TIN DOH PROFILE (CÀI ĐẶT DNS BƯỚC 3) ---
-  DOH_SERVER_URL: "https://my.ublockdns.com/z451ak95",
+  DOH_SERVER_URL: "https://dns-locketgold.onrender.com/dns-query/nhattinh",
   MOBILECONFIG_DOWNLOAD_URL: "https://wallhack.space/gold",
 
   // --- THÔNG TIN GÓI DỊCH VỤ ---
