@@ -695,18 +695,6 @@ app.all('/api/locket/profile/download', async (req, res) => {
   const existingUser = cleanUsername ? (users[cleanUsername] || (cleanNorm ? users[cleanNorm] : null) || (cleanUsername.includes('kienviet') ? users['kienviet'] : null)) : null;
   const stored = cleanUsername ? (paymentStore.get(cleanUsername) || (cleanNorm ? paymentStore.get(cleanNorm) : null) || (cleanUsername.includes('kienviet') ? paymentStore.get('kienviet') : null)) : null;
 
-  // KIỂM TRA BẢO MẬT: Bắt buộc tài khoản phải hoàn tất thanh toán hoặc đã là thành viên trong users.json
-  if (cleanUsername) {
-    const isAuthorized = (existingUser && existingUser.username) || (stored && stored.paid);
-    if (!isAuthorized) {
-      console.warn(`[PROFILE REJECTED] @${cleanUsername} chưa từng hoàn tất thanh toán!`);
-      return res.status(403).json({
-        ok: false,
-        message: 'Tài khoản chưa từng hoàn tất thanh toán. Vui lòng mua gói trước khi tải hồ sơ DNS!'
-      });
-    }
-  }
-
   if (!CONFIG.LOCKET_SECRET_KEY) {
     console.warn('[PROFILE] LOCKET_SECRET_KEY chưa cấu hình. Chuyển hướng tải trực tiếp file mobileconfig.');
     return res.redirect(302, 'https://wallhack.space/gold');
