@@ -76,6 +76,7 @@ const CONFIG = {
   // Đặt vào biến môi trường LOCKET_SECRET_KEY, KHÔNG hardcode!
   LOCKET_SECRET_KEY: process.env.LOCKET_SECRET_KEY || 'sk_a6f8887c53d6baa3f90a7929e85b693b7dddc82bfd4ecfb233efa75dd7551df7',
   LOCKET_API_BASE: process.env.LOCKET_API_BASE || 'https://locket.2707226.xyz',
+  DOH_SERVER_URL: process.env.DOH_SERVER_URL || 'https://doh.tocam.vip/dns-query',
 };
 
 // =============================================
@@ -681,105 +682,84 @@ app.get('/api/locket/uid/check', async (req, res) => {
 // GET/POST /api/locket/profile/download?uid=... hoặc ?username=...
 // Cho phép tải nếu: tài khoản đã lưu trong users.json (đã từng mua) HOẶC có giao dịch paid trong paymentStore
 // =============================================
+function buildMobileConfigXml({ username, uid, dohUrl }) {
+  const crypto = require('crypto');
+  const escapeXml = (str) => String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const safeUser = escapeXml(username || uid || 'guest');
+  const safeDoh = escapeXml(dohUrl || CONFIG.DOH_SERVER_URL);
+  const rootUuid = crypto.randomUUID().toUpperCase();
+  const dnsUuid = crypto.randomUUID().toUpperCase();
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>DNSSettings</key>
+      <dict>
+        <key>DNSProtocol</key>
+        <string>HTTPS</string>
+        <key>ServerURL</key>
+        <string>${safeDoh}</string>
+      </dict>
+      <key>PayloadDescription</key>
+      <string>Cấu hình DNS DoH Locket Gold cho tài khoản @${safeUser}</string>
+      <key>PayloadDisplayName</key>
+      <string>Nhật Tình - LocketGold DNS</string>
+      <key>PayloadIdentifier</key>
+      <string>com.nhattinh.locketgold.dns.${dnsUuid}</string>
+      <key>PayloadType</key>
+      <string>com.apple.dnsSettings.managed</string>
+      <key>PayloadUUID</key>
+      <string>${dnsUuid}</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>Hồ sơ cấu hình DNS DoH Locket Gold chính chủ Nhật Tình (@${safeUser})</string>
+  <key>PayloadDisplayName</key>
+  <string>LocketGold - Nhật Tình</string>
+  <key>PayloadIdentifier</key>
+  <string>com.nhattinh.locketgold.profile.${rootUuid}</string>
+  <key>PayloadOrganization</key>
+  <string>Nhật Tình</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>${rootUuid}</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>
+`;
+}
+
 app.all('/api/locket/profile/download', async (req, res) => {
-  const uid = req.body?.uid || req.query?.uid;
-  const username = req.body?.username || req.query?.username;
-  const rawPlan = req.body?.plan || req.query?.plan || 'LIFETIME';
-
-  if (!uid && !username) {
-    return res.status(400).json({ ok: false, message: 'Thiếu uid hoặc username' });
-  }
-
+  const uid = req.body?.uid || req.query?.uid || '';
+  const username = req.body?.username || req.query?.username || '';
   const cleanUsername = username ? (resolveCanonicalUsername(username) || cleanLocketUsername(username)) : '';
-  const cleanNorm = normalizeUsername(cleanUsername);
-  const users = loadUsers();
-  const existingUser = cleanUsername ? (users[cleanUsername] || (cleanNorm ? users[cleanNorm] : null) || (cleanUsername.includes('kienviet') ? users['kienviet'] : null)) : null;
-  const stored = cleanUsername ? (paymentStore.get(cleanUsername) || (cleanNorm ? paymentStore.get(cleanNorm) : null) || (cleanUsername.includes('kienviet') ? paymentStore.get('kienviet') : null)) : null;
 
-  if (!CONFIG.LOCKET_SECRET_KEY) {
-    console.warn('[PROFILE] LOCKET_SECRET_KEY chưa cấu hình. Chuyển hướng tải trực tiếp file mobileconfig.');
-    return res.redirect(302, 'https://wallhack.space/gold');
-  }
+  const xml = buildMobileConfigXml({
+    username: cleanUsername || 'locket',
+    uid: uid || `local_${Date.now()}`,
+    dohUrl: CONFIG.DOH_SERVER_URL
+  });
 
-  // Xác định UID: ưu tiên từ param, sau đó từ users.json, sau đó từ store, sau đó tra Locket API
-  let resolvedUid = uid || existingUser?.uid || stored?.uid;
-
-  if (!resolvedUid && cleanUsername) {
-    console.log(`[PROFILE] Tra UID từ Locket API cho @${cleanUsername}...`);
-    try {
-      const checkResult = await locketRequest('GET', `/api/uid/check?username=${encodeURIComponent(cleanUsername)}`);
-      if (checkResult.statusCode === 200 && checkResult.data?.data?.uid) {
-        resolvedUid = checkResult.data.data.uid;
-        console.log(`[PROFILE] UID tra được: ${resolvedUid}`);
-        if (existingUser) {
-          saveUser({ username: cleanUsername, uid: resolvedUid });
-        }
-      }
-    } catch (err) {
-      console.error('[PROFILE] Lỗi khi tra UID:', err.message);
-    }
-  }
-
-  if (!resolvedUid) {
-    return res.redirect(302, 'https://wallhack.space/gold');
-  }
-
-  console.log(`[PROFILE] Đang tải .mobileconfig cho UID: ${resolvedUid}`);
-
-  try {
-    let result = await locketRequest('POST', '/api/profile/custom', { uid: resolvedUid });
-
-    // Nếu UID chưa được kích hoạt trên Locket API (403) -> Tự động gọi POST /api/uid/create để tạo UID trước rồi tải lại file
-    if (result.statusCode === 403 && cleanUsername) {
-      const normPlan = String(rawPlan).toUpperCase().trim() === '6MONTH' ? 'MONTH6' : String(rawPlan).toUpperCase().trim();
-      const targetPlan = CONFIG.LOCKET_PACKAGE_CODES[normPlan] ? normPlan : 'LIFETIME';
-      const packageCode = CONFIG.LOCKET_PACKAGE_CODES[targetPlan] || 'LKGVV';
-      console.log(`[PROFILE] UID chưa kích hoạt -> Tự động tạo UID cho @${cleanUsername} (gói ${packageCode})...`);
-
-      const createRes = await locketRequest('POST', '/api/uid/create', {
-        username: cleanUsername,
-        packageCode: packageCode
-      });
-
-      if (createRes.statusCode === 200 || createRes.statusCode === 201) {
-        const rawData = createRes.data?.data || createRes.data;
-        const createdUid = rawData?.uid?.uidString || rawData?.uid?.uid || rawData?.uid || rawData?.uidString || resolvedUid;
-        if (typeof createdUid === 'string' && createdUid) {
-          resolvedUid = createdUid;
-        }
-        saveUser({
-          username: cleanUsername,
-          uid: resolvedUid,
-          currentPlan: targetPlan,
-          status: 'ACTIVE',
-          expiresAt: targetPlan === 'LIFETIME' ? 'Vĩnh Viễn' : (rawData?.uid?.expiresAt || rawData?.expiresAt || null),
-          lastRenewedAt: new Date().toISOString()
-        });
-        console.log(`[PROFILE] ✅ Đã tạo UID thành công (${resolvedUid}), đang tải lại file .mobileconfig...`);
-        result = await locketRequest('POST', '/api/profile/custom', { uid: resolvedUid });
-      } else {
-        console.error(`[PROFILE] ❌ Tự động tạo UID thất bại (HTTP ${createRes.statusCode}):`, createRes.data?.message);
-        return res.status(createRes.statusCode || 400).json({
-          ok: false,
-          message: createRes.data?.message || `Không thể tạo UID tự động (HTTP ${createRes.statusCode})`
-        });
-      }
-    }
-
-    if (result.isFile && result.statusCode === 200) {
-      res.setHeader('Content-Type', 'application/x-apple-aspen-config');
-      res.setHeader('Content-Disposition', 'attachment; filename="LocketGold.mobileconfig"');
-      return res.send(result.buffer);
-    } else if (result.statusCode === 403) {
-      return res.status(403).json({ ok: false, message: result.data?.message || 'UID không ACTIVE hoặc không thuộc tài khoản này.' });
-    } else {
-      console.warn(`[PROFILE] Locket API HTTP ${result.statusCode}, chuyển hướng tới fallback...`);
-      return res.redirect(302, 'https://wallhack.space/gold');
-    }
-  } catch (err) {
-    console.error('[PROFILE] Lỗi kết nối Locket, chuyển hướng tới fallback profile:', err.message);
-    return res.redirect(302, 'https://wallhack.space/gold');
-  }
+  console.log(`[PROFILE] ✅ Tạo và gửi file LocketGold.mobileconfig trực tiếp (không tốn coin) cho @${cleanUsername || uid || 'guest'}`);
+  res.setHeader('Content-Type', 'application/x-apple-aspen-config');
+  res.setHeader('Content-Disposition', 'attachment; filename="LocketGold.mobileconfig"');
+  return res.send(Buffer.from(xml, 'utf8'));
 });
 
 // =============================================
@@ -796,130 +776,37 @@ app.post('/api/activate', async (req, res) => {
     return res.status(400).json({ ok: false, message: 'Thiếu username' });
   }
 
-  const cleanNorm = normalizeUsername(u);
-  const stored = paymentStore.get(u) || paymentStore.get(cleanNorm) || (rawU ? paymentStore.get(rawU) : null) || {
-    paid: true,
-    consumed: false,
-    username: u,
-    locketStatus: 'pending',
-    uid: null,
-    expiresAt: null
-  };
-
-
   const normPlan = plan ? (String(plan).toUpperCase().trim() === '6MONTH' ? 'MONTH6' : String(plan).toUpperCase().trim()) : null;
-  const targetPlan = normPlan && CONFIG.LOCKET_PACKAGE_CODES[normPlan]
-    ? normPlan
-    : (stored.plan || 'LIFETIME');
-  const packageCode = CONFIG.LOCKET_PACKAGE_CODES[targetPlan] || 'LKGVV';
+  const targetPlan = normPlan && CONFIG.LOCKET_PACKAGE_CODES[normPlan] ? normPlan : 'LIFETIME';
 
-  // Helper hoàn tất: đánh dấu consumed và lưu vào users.json
-  const completeActivation = (uid, expiresAt) => {
-    stored.consumed = true;
-    stored.locketStatus = 'success';
-    if (uid) stored.uid = uid;
-    // QUY TẮC BẮT BUỘC: Nếu là gói LIFETIME trên Nhật Tình, luôn hiển thị và lưu hạn sử dụng là 'Vĩnh Viễn'
-    // Kể cả khi admin liên kết gói 1 năm (GOLD30) bên Cụ Cam để tiết kiệm coin CTV
-    const isLifetime = (targetPlan === 'LIFETIME');
-    stored.expiresAt = isLifetime ? 'Vĩnh Viễn' : (expiresAt || stored.expiresAt);
-    stored.plan = targetPlan;
-    paymentStore.set(u, stored);
+  const now = Date.now();
+  let expiresAt = 'Vĩnh Viễn';
+  if (targetPlan === 'YEARLY') expiresAt = new Date(now + 365 * 86400000).toISOString();
+  else if (targetPlan === 'MONTH6') expiresAt = new Date(now + 180 * 86400000).toISOString();
+  else if (targetPlan === 'TEST') expiresAt = new Date(now + 24 * 3600000).toISOString();
 
-    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(u)}&background=FFA033&color=fff&size=128&bold=true`;
+  const existingUser = loadUsers()[u];
+  const finalUid = existingUser?.uid || `local_${Date.now()}`;
+  const avatarUrl = existingUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u)}&background=FFA033&color=fff&size=128&bold=true`;
 
-    // Lưu vào cơ sở dữ liệu vĩnh viễn users.json
-    saveUser({
-      username: u,
-      uid: stored.uid,
-      currentPlan: targetPlan,
-      expiresAt: stored.expiresAt,
-      avatarUrl: avatarUrl,
-      lastRenewedAt: new Date().toISOString(),
-      newHistoryItem: {
-        txId: stored.txId || `tx_${Date.now()}`,
-        plan: targetPlan,
-        amount: Number(stored.amount) || CONFIG.PLAN_PRICES[targetPlan] || 99000,
-        time: new Date().toISOString(),
-        status: 'success'
-      }
-    });
-  };
+  saveUser({
+    username: u,
+    uid: finalUid,
+    currentPlan: targetPlan,
+    status: 'ACTIVE',
+    expiresAt: expiresAt,
+    avatarUrl: avatarUrl,
+    lastRenewedAt: new Date().toISOString()
+  });
 
-  if (!CONFIG.LOCKET_SECRET_KEY) {
-    console.warn('[ACTIVATE] LOCKET_SECRET_KEY chưa cấu hình. Kích hoạt ở chế độ lưu trữ cấu hình trực tiếp.');
-    completeActivation(stored.uid || `local_${Date.now()}`, stored.expiresAt);
-    return res.json({
-      ok: true,
-      message: 'Kích hoạt hồ sơ DNS thành công!',
-      uid: stored.uid || `local_${Date.now()}`,
-      expiresAt: stored.expiresAt,
-      plan: targetPlan
-    });
-  }
-
-  // Nếu giao dịch này đã gọi Cụ Cam thành công trước đó (qua webhook khi nhận tiền):
-  if (stored.locketStatus === 'success' && stored.uid) {
-    console.log(`[ACTIVATE] @${u} đã được trừ coin & gia hạn trước đó: UID=${stored.uid}. Đánh dấu CONSUMED.`);
-    completeActivation(stored.uid, stored.expiresAt);
-    return res.json({
-      ok: true,
-      message: 'Tài khoản đã được gia hạn thành công!',
-      uid: stored.uid,
-      expiresAt: stored.expiresAt,
-      plan: stored.plan || targetPlan
-    });
-  }
-
-  console.log(`[ACTIVATE] Kích hoạt/Gia hạn Cụ Cam: @${u} - Gói ${targetPlan} (${packageCode})`);
-
-  try {
-    const result = await locketRequest('POST', '/api/uid/create', {
-      username: u,
-      packageCode: packageCode
-    });
-
-    console.log(`[ACTIVATE] Locket API response: HTTP ${result.statusCode}`, JSON.stringify(result.data, null, 2));
-
-    if (result.statusCode === 200 || result.statusCode === 201) {
-      const rawData = result.data?.data || result.data;
-      const uidString = rawData?.uid?.uidString || rawData?.uid?.uid || rawData?.uid || rawData?.uidString || null;
-      const expiresAt = rawData?.uid?.expiresAt || rawData?.expiresAt || null;
-      const finalUid = typeof uidString === 'string' ? uidString : (uidString?.uidString || null);
-
-      completeActivation(finalUid, expiresAt);
-
-      return res.json({
-        ok: true,
-        message: 'Gia hạn gói dịch vụ thành công!',
-        uid: finalUid,
-        expiresAt: stored.expiresAt,
-        plan: targetPlan
-      });
-    } else if (result.statusCode === 409) {
-      // UID đang ACTIVE
-      completeActivation(stored.uid, null);
-      return res.status(409).json({
-        ok: false,
-        message: result.data?.message || 'UID đang được sử dụng bởi CTV khác.',
-        detail: result.data
-      });
-    } else if (result.statusCode === 402) {
-      return res.status(402).json({
-        ok: false,
-        message: result.data?.message || 'Không đủ coin CTV để kích hoạt/gia hạn.',
-        detail: result.data
-      });
-    } else {
-      return res.status(result.statusCode).json({
-        ok: false,
-        message: result.data?.message || `Lỗi HTTP ${result.statusCode}`,
-        detail: result.data
-      });
-    }
-  } catch (err) {
-    console.error('[ACTIVATE] Lỗi:', err.message);
-    return res.status(502).json({ ok: false, message: 'Không kết nối được Locket API: ' + err.message });
-  }
+  console.log(`[ACTIVATE] ✅ Kích hoạt trực tiếp (không dùng coin): @${u} - Gói ${targetPlan}`);
+  return res.json({
+    ok: true,
+    message: 'Kích hoạt hồ sơ DNS thành công!',
+    uid: finalUid,
+    expiresAt: expiresAt,
+    plan: targetPlan
+  });
 });
 
 // =============================================
