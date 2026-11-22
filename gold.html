@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <!-- Stepper Progress Bar (Thanh toán là Bước 2, Cài DNS là Bước 3) -->
+    <!-- Stepper Progress Bar (Chọn Gói là Bước 1, Cài DNS là Bước 2) -->
     <div class="stepper">
       <div class="step-item active" id="stepper-1">
         <div class="step-circle">1</div>
@@ -83,11 +83,6 @@
       <div class="step-line"></div>
       <div class="step-item" id="stepper-2">
         <div class="step-circle">2</div>
-        <span>Thanh Toán</span>
-      </div>
-      <div class="step-line"></div>
-      <div class="step-item" id="stepper-3">
-        <div class="step-circle">3</div>
         <span>Cài DNS</span>
       </div>
     </div>
@@ -343,141 +338,12 @@
       </button>
     </div>
 
-    <!-- ==================== BƯỚC 2: THANH TOÁN (ĐƯA LÊN BƯỚC 2) ==================== -->
+
+
+    <!-- ==================== BƯỚC 2: CÀI ĐẶT DNS DOH & KÍCH HOẠT ==================== -->
     <div class="wizard-card wizard-step" id="step-2" style="display: none;">
       <h2 style="font-family:'Fredoka',sans-serif; color:#fff; font-size:18px; margin-bottom:4px;">
-        2. Thanh Toán Chuyển Khoản Tự Động
-      </h2>
-      <p style="color:#94A3B8; font-size:12.5px; margin-bottom:16px;">
-        Quét mã VietQR hoặc chuyển khoản theo thông tin bên dưới để hệ thống ghi nhận tức thì:
-      </p>
-
-      <div class="qr-card-wrap">
-        <div class="qr-box"
-          style="padding: 6px; max-width: 290px; margin: 0 auto 12px; border-radius: 20px; background: #fff;">
-          <img id="vietqr-img" src="images/bank_qr.jpg" alt="Mã Techcombank QR NGUYEN MINH HIEP"
-            style="width: 100%; height: auto; display: block; border-radius: 16px;">
-        </div>
-        <div style="font-size:12px; color:#FFA033; font-weight:800;">
-          <i class="fa-regular fa-clock"></i> Thời gian giữ phiên thanh toán: <span id="timer-count">10:00</span>
-        </div>
-      </div>
-
-      <div class="bank-info-table">
-        <div class="bank-info-row">
-          <span>Ngân hàng:</span>
-          <span id="cfg-bank-name">Techcombank</span>
-        </div>
-        <div class="bank-info-row">
-          <span>Số tài khoản:</span>
-          <span>
-            <strong id="cfg-acc-number">2027 0220 07</strong>
-            <button class="copy-btn-inline" onclick="copyCurrentAccountNumber()">Sao chép</button>
-          </span>
-        </div>
-        <div class="bank-info-row">
-          <span>Chủ tài khoản:</span>
-          <span id="cfg-acc-holder">NGUYEN MINH HIEP</span>
-        </div>
-        <div class="bank-info-row">
-          <span>Số tiền:</span>
-          <span style="color:#FF7A00;" id="pay-amount">99.000đ</span>
-        </div>
-        <div class="bank-info-row">
-          <span>Nội dung chuyển:</span>
-          <span>
-            <strong style="color:#38BDF8;" id="pay-memo">Nhật Tình VIP</strong>
-            <button class="copy-btn-inline" onclick="copyCurrentMemo()">Sao chép</button>
-          </span>
-        </div>
-      </div>
-
-      <!-- ==================== ĐƠN HÀNG ĐANG CHỜ CỦA BẠN (RIÊNG BIỆT) ==================== -->
-      <div class="step2-pending-card-wrap" id="step2-pending-card-wrap"
-        style="margin-top: 14px; background: rgba(56, 189, 248, 0.05); border: 1.5px dashed rgba(56, 189, 248, 0.45); border-radius: 16px; padding: 14px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="live-dot-pulse" id="step2-pending-pulse" style="background:#38BDF8;"></span>
-            <span id="step2-pending-title"
-              style="font-size:12px; font-weight:800; color:#38BDF8; text-transform:uppercase; letter-spacing:0.5px;">
-              Đơn Hàng Của Bạn (Đang Chờ Quét)
-            </span>
-          </div>
-          <span id="step2-pending-tag"
-            style="background:rgba(56,189,248,0.15); color:#38BDF8; border:1px solid rgba(56,189,248,0.3); font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">
-            Đang quét 24/7
-          </span>
-        </div>
-
-        <div class="step2-tx-row pending" id="step2-current-tx-row"
-          style="background:rgba(0,0,0,0.3); border:1px solid rgba(56,189,248,0.25);">
-          <div class="step2-tx-left">
-            <div class="step2-tx-icon pending" id="step2-current-tx-icon">
-              <i class="fa-solid fa-spinner fa-spin"></i>
-            </div>
-            <div class="step2-tx-info">
-              <div class="step2-tx-title" id="step2-current-tx-user">
-                @VIP <span style="font-size:11px; font-weight:600; color:#38BDF8; margin-left:4px;"
-                  id="step2-current-tx-plan">Gói Vĩnh Viễn</span>
-              </div>
-              <div class="step2-tx-sub" id="step2-current-tx-sub">
-                <span>Nội dung: <b style="color:#38BDF8;" id="step2-current-tx-memo">Nhật Tình VIP</b></span> &bull;
-                <span>Vừa tạo</span>
-              </div>
-            </div>
-          </div>
-          <div class="step2-tx-right">
-            <span class="step2-tx-amount" id="step2-current-tx-amount">+99.000đ</span>
-            <span class="step2-tx-badge pending" id="step2-current-tx-badge">
-              <i class="fa-solid fa-spinner fa-spin"></i> Đang chờ...
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== LỊCH SỬ GIAO DỊCH ĐÃ THÀNH CÔNG (TÁCH SANG BÊN KHÁC) ==================== -->
-      <div class="step2-tx-history-box" style="margin-top: 14px;">
-        <div class="step2-tx-history-header">
-          <div class="step2-tx-header-title">
-            <i class="fa-solid fa-circle-check" style="color: #10B981;"></i>
-            <span>Giao Dịch Đã Thành Công Gần Đây</span>
-          </div>
-          <span class="step2-tx-header-live">
-            <span class="live-dot-pulse"></span> Tự động cập nhật
-          </span>
-        </div>
-
-        <div class="step2-tx-list" id="step2-tx-list">
-          <!-- Các giao dịch người mua thật của hệ thống -->
-          <div id="step2-recent-txs" style="display: flex; flex-direction: column; gap: 8px;"></div>
-          <!-- Thanh phân trang khi danh sách giao dịch đầy hàng -->
-          <div class="step2-tx-pagination" id="step2-tx-pagination" style="display: none;"></div>
-        </div>
-      </div>
-
-      <!-- Trạng thái chờ hệ thống tự động quét và chuyển trang -->
-      <div
-        style="margin: 12px 0 14px; padding: 12px 14px; background: rgba(56, 189, 248, 0.08); border: 1.5px dashed rgba(56, 189, 248, 0.4); border-radius: 14px; text-align: center;">
-        <div
-          style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #38BDF8; font-weight: 800; font-size: 13.5px;">
-          <i class="fa-solid fa-bolt"></i>
-          <span>Hệ thống tự động kích hoạt & chuyển bước 3 khi nhận được tiền!</span>
-        </div>
-        <p style="margin-top: 4px; font-size: 11.5px; color: #94A3B8; line-height: 1.4; margin-bottom: 0;">
-          Sau khi chuyển khoản, giao dịch ở trên sẽ tự động chuyển sang <b style="color:#10B981;">"Thành công"</b> và
-          lập tức đưa bạn sang bước Cài đặt DNS.
-        </p>
-      </div>
-
-      <button type="button" class="btn-back-action" onclick="goToStep(1)" style="margin-top: 10px;">
-        <i class="fa-solid fa-arrow-left"></i> Quay lại chọn gói
-      </button>
-    </div>
-
-    <!-- ==================== BƯỚC 3: CÀI ĐẶT DNS DOH & KÍCH HOẠT ==================== -->
-    <div class="wizard-card wizard-step" id="step-3" style="display: none;">
-      <h2 style="font-family:'Fredoka',sans-serif; color:#fff; font-size:18px; margin-bottom:4px;">
-        3. Cài Đặt DNS DoH &amp; Kích Hoạt
+        2. Cài Đặt DNS DoH &amp; Kích Hoạt
       </h2>
       <p style="color:#94A3B8; font-size:12.5px; margin-bottom:16px;">
         Cài đặt cấu hình DNS DoH bảo mật để kích hoạt đầy đủ 9 tính năng VIP Locket Gold trên iPhone:
@@ -565,6 +431,10 @@
       <button type="button" class="btn-primary-action" id="btn-activate-gold" onclick="checkActivation()">
         <i class="fa-solid fa-bolt"></i>
         <span>Kích Hoạt Gold &amp; Nhận Cấu Hình DNS</span>
+      </button>
+
+      <button type="button" class="btn-back-action" onclick="goToStep(1)" style="margin-top: 10px;">
+        <i class="fa-solid fa-arrow-left"></i> Quay lại chọn gói
       </button>
     </div>
 

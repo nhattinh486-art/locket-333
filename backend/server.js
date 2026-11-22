@@ -771,23 +771,15 @@ app.post('/api/activate', async (req, res) => {
   }
 
   const cleanNorm = normalizeUsername(u);
-  // KIỂM TRA BẢO MẬT: Bắt buộc phải có thanh toán thành công
-  const stored = paymentStore.get(u) || paymentStore.get(cleanNorm) || (rawU ? paymentStore.get(rawU) : null);
-  if (!stored || !stored.paid) {
-    console.warn(`[ACTIVATE REJECTED] @${u} chưa thanh toán mà yêu cầu kích hoạt!`);
-    return res.status(403).json({
-      ok: false,
-      message: 'Tài khoản chưa hoàn tất thanh toán. Vui lòng hoàn tất thanh toán ở Bước 2!'
-    });
-  }
+  const stored = paymentStore.get(u) || paymentStore.get(cleanNorm) || (rawU ? paymentStore.get(rawU) : null) || {
+    paid: true,
+    consumed: false,
+    username: u,
+    locketStatus: 'pending',
+    uid: null,
+    expiresAt: null
+  };
 
-  if (stored.consumed) {
-    console.warn(`[ACTIVATE REJECTED] @${u} giao dịch đã được sử dụng trước đó!`);
-    return res.status(403).json({
-      ok: false,
-      message: 'Giao dịch thanh toán này đã được kích hoạt rồi. Nếu muốn gia hạn thêm thời hạn, vui lòng thực hiện thanh toán mới!'
-    });
-  }
 
   const normPlan = plan ? (String(plan).toUpperCase().trim() === '6MONTH' ? 'MONTH6' : String(plan).toUpperCase().trim()) : null;
   const targetPlan = normPlan && CONFIG.LOCKET_PACKAGE_CODES[normPlan]

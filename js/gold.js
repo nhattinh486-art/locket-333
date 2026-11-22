@@ -351,11 +351,8 @@ function lookupUsername(onComplete) {
 }
 
 function goToStep(step) {
-  if (step === 3 && !isPaymentVerified) {
-    alert('⚠️ Bạn chưa hoàn tất thanh toán. Vui lòng hoàn tất thanh toán ở Bước 2 để hệ thống trừ coin & cấp cấu hình DNS!');
-    goToStep(2);
-    return;
-  }
+  // Nếu có lời gọi cũ chuyển sang bước 3 -> map thẳng về bước 2 (Cài DNS)
+  if (step === 3) step = 2;
 
   if (step === 2) {
     const input = document.getElementById('username-input');
@@ -364,7 +361,7 @@ function goToStep(step) {
     const cleaned = cleanLocketUsername(candidate);
 
     if (!cleaned) {
-      setUsernameError(true, 'Vui lòng nhập Username Locket của bạn trước khi sang bước thanh toán!');
+      setUsernameError(true, 'Vui lòng nhập Username Locket của bạn trước khi tiếp tục!');
       input?.focus();
       return;
     }
@@ -412,27 +409,18 @@ function goToStep(step) {
     setUsernameError(false);
     if (input) input.value = cleaned;
     currentUsername = cleaned;
-    isPaymentVerified = false; // Luôn yêu cầu chuyển khoản cho mỗi phiên giao dịch
-    paymentSessionStartTime = Date.now(); // Khởi tạo mốc thời gian phiên thanh toán mới
-    isPaymentTransitioning = false;
-    updatePaymentInfo();
-    loadRecentTransactions();
-    startPaymentTimer();
-    startPaymentPolling(); // ← Bắt đầu polling tự động!
+    isPaymentVerified = true;
   }
 
-  // Dừng polling khi rời khỏi bước 2
-  if (step !== 2) {
-    stopPaymentPolling();
-  }
+  stopPaymentPolling();
 
   currentStep = step;
   document.querySelectorAll('.wizard-step').forEach(s => s.style.display = 'none');
   const targetStep = document.getElementById(`step-${step}`);
   if (targetStep) targetStep.style.display = 'block';
 
-  // Cập nhật thanh Stepper
-  for (let i = 1; i <= 3; i++) {
+  // Cập nhật thanh Stepper (2 bước: 1 Chọn Gói -> 2 Cài DNS)
+  for (let i = 1; i <= 2; i++) {
     const stepEl = document.getElementById(`stepper-${i}`);
     if (stepEl) {
       stepEl.classList.remove('active', 'completed');
@@ -446,12 +434,12 @@ function goToStep(step) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // Ở bước 3: Chờ người dùng nhấn nút kích hoạt, không tự động kích hoạt
-  if (step === 3) {
+  // Ở bước 2 (Cài DNS): Chờ người dùng nhấn nút kích hoạt
+  if (step === 2) {
     const terminal = document.getElementById('terminal-content');
     if (terminal) {
       terminal.innerHTML = `
-        <div class="terminal-line info">[SẴN SÀNG] Đã xác nhận thanh toán tài khoản @${currentUsername || 'bạn'}</div>
+        <div class="terminal-line info">[SẴN SÀNG] Đã xác nhận tài khoản @${currentUsername || 'bạn'}</div>
         <div class="terminal-line gold">[HƯỚNG DẪN] 👉 Nhấn nút "Kích Hoạt Gold &amp; Nhận Cấu Hình DNS" bên dưới để nhận file cài đặt!</div>
       `;
     }
@@ -875,7 +863,7 @@ function termLog(terminal, text, type) {
 
 async function checkActivation() {
   const terminal = document.getElementById('terminal-content');
-  const btn = document.querySelector('#step-3 .btn-primary-action');
+  const btn = document.getElementById('btn-activate-gold') || document.querySelector('#step-2 .btn-primary-action');
   if (!terminal) return;
 
   terminal.innerHTML = '';
@@ -1468,9 +1456,6 @@ function checkUrlPlanParam() {
 document.addEventListener('DOMContentLoaded', () => {
   initFromConfig();
   checkUrlPlanParam();
-  loadRecentTransactions();
-  // Tự động làm mới lịch sử mỗi 10 giây
-  setInterval(loadRecentTransactions, 10000);
 
   const uInput = document.getElementById('username-input');
   if (uInput) {
